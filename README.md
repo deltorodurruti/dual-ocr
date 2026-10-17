@@ -1,98 +1,98 @@
 # dual-ocr
 
-Lee una página escaneada con dos motores de OCR, Tesseract y RapidOCR, y combina las dos lecturas palabra por palabra para quedarse con el texto más limpio.
+Reads a scanned page with two OCR engines, Tesseract and RapidOCR, and merges both readings word by word so you keep the cleaner text.
 
-## Para qué sirve
+## What it is for
 
-Sirve para sacar texto de páginas escaneadas o fotografiadas, sobre todo de libros viejos, donde la tipografía no es limpia. Devuelve el texto ya separado en párrafos, listo para leer, traducir o buscar.
+It pulls text out of scanned or photographed pages, especially old books with uneven typography. It returns the text already split into paragraphs, ready to read, translate or search.
 
-## Por qué existe
+## Why it exists
 
-Ningún motor de OCR acierta siempre. En las pruebas que hicimos con un libro escaneado pasó lo siguiente:
+No OCR engine is right every time. In our tests on a scanned book we saw this:
 
-- Tesseract separa bien los párrafos y lee bien el cuerpo del texto, pero a veces confunde letras parecidas y se pierde en portadas con tipografía decorativa.
-- RapidOCR acierta más en las letras, pero a veces pega en un solo párrafo lo que debería ir separado.
+- Tesseract separates paragraphs well and reads the body text well, but it sometimes confuses similar letters and it falls apart on pages with decorative type.
+- RapidOCR gets letters right more often, but sometimes it merges text that should be split into separate paragraphs.
 
-Cuando uno falla, el otro suele acertar, y no siempre son las mismas palabras. Por eso el proyecto lee la página con los dos y compara. Donde las lecturas coinciden, se toma la palabra y se conservan los saltos de párrafo que marque cualquiera de los dos. Donde difieren, gana la lectura que tiene más palabras válidas en inglés: si uno lee «LNountains» y el otro «mountains», se queda con «mountains».
+When one engine fails, the other usually gets it right, and they rarely fail on the same words. So the project reads each page with both and compares. Where the readings agree, it keeps the word and the paragraph breaks marked by either engine. Where they differ, it keeps the reading with more valid English words: if one reads "LNountains" and the other "mountains", it keeps "mountains".
 
-Esto no reemplaza la revisión humana. El criterio es un diccionario, así que se equivoca cuando los dos motores fallan igual, con nombres propios que el diccionario no trae, o con símbolos que parecen palabras. Si vas a publicar o traducir el resultado, lee las páginas con texto raro.
+This does not replace a human check. The tie-breaker is a dictionary, so it can still be wrong when both engines fail the same way, with proper names the dictionary does not contain, or with symbols that look like words. If you publish or translate the output, read the pages with odd text.
 
-## Cómo funciona
+## How it works
 
-1. La imagen se prepara: escala de grises, autocontraste, enderezado fino y binarización con OpenCV.
-2. Tesseract lee la página (antes se corrige la orientación de 90 o 180 grados).
-3. RapidOCR lee la misma página, sin esa corrección porque su modelo ya clasifica la orientación.
-4. Las dos lecturas se alinean palabra por palabra con `difflib` de la biblioteca estándar y se fusionan con las reglas de arriba.
+1. The image is prepared: grayscale, autocontrast, fine deskew and binarization with OpenCV.
+2. Tesseract reads the page. Its orientation check (90 or 180 degrees) runs first.
+3. RapidOCR reads the same page without that correction, because its model already classifies orientation.
+4. The two readings are aligned word by word with `difflib` from the standard library and merged with the rules above.
 
-Si uno de los dos motores no está instalado, el proyecto usa solo el otro. Si no hay ninguno, lanza un error claro.
+If one engine is not installed, the project uses only the other. If neither is installed, it raises a clear error.
 
-## Instalación
+## Installation
 
-Necesitas Python (lo probamos con la versión 3.11) y el programa de Tesseract en tu sistema:
+You need Python (tested with 3.11) and the Tesseract program on your system:
 
 - macOS: `brew install tesseract`
-- Debian o Ubuntu: `sudo apt install tesseract-ocr tesseract-ocr-eng`
-- Windows: el instalador de UB Mannheim
+- Debian or Ubuntu: `sudo apt install tesseract-ocr tesseract-ocr-eng`
+- Windows: the UB Mannheim installer
 
-Después, en el directorio del proyecto:
+Then, from the project directory:
 
 ```
 pip install -r requirements.txt
 ```
 
-## Uso
+## Usage
 
-Desde la línea de comandos, con una imagen de página:
+From the command line, with a page image:
 
 ```
-python dual_ocr.py pagina.png
-python dual_ocr.py pagina.png --engine tesseract
-python dual_ocr.py pagina.png --engine rapid
+python dual_ocr.py page.png
+python dual_ocr.py page.png --engine tesseract
+python dual_ocr.py page.png --engine rapid
 ```
 
-Desde Python:
+From Python:
 
 ```python
 from dual_ocr import read_page
 
-with open("pagina.png", "rb") as handle:
+with open("page.png", "rb") as handle:
     paragraphs = read_page(handle.read())
 
 for paragraph in paragraphs:
     print(paragraph)
 ```
 
-El modo también se puede fijar con la variable de entorno `DUAL_OCR_ENGINE` (`dual`, `tesseract` o `rapid`). Por defecto es `dual`.
+You can also set the mode with the `DUAL_OCR_ENGINE` environment variable (`dual`, `tesseract` or `rapid`). The default is `dual`.
 
-Si tienes un PDF escaneado, primero conviértelo en imágenes, por ejemplo con PyMuPDF (`page.get_pixmap(dpi=300).tobytes("png")`). Lo usual es 300 ppp.
+For a scanned PDF, first convert each page to an image. For example, with PyMuPDF: `page.get_pixmap(dpi=300).tobytes("png")`. 300 dpi is a good starting point.
 
-## Pruebas
+## Tests
 
 ```
 python -m unittest discover -s tests -v
 ```
 
-Las pruebas cubren la fusión de lecturas, el descarte de símbolos sueltos, la detección de palabras válidas y la separación de párrafos por sangría y por huecos verticales. No prueban los motores de OCR en sí.
+The tests cover merging readings, dropping stray symbols, word validation, and paragraph detection from indentation and vertical gaps. They do not test the OCR engines themselves.
 
-## Limitaciones
+## Limitations
 
-- Los errores que comparten los dos motores no se corrigen.
-- Los nombres propios que no están en el diccionario se conservan tal como los lee el motor, pero no se pueden corregir con certeza.
-- El diccionario sale de `/usr/share/dict/words` (macOS y Linux). En Windows no existe, y entonces se usa una regla simple que solo mira si la palabra tiene vocales. Es más flojo.
-- Las portadas con letras decorativas siguen siendo difíciles para cualquier motor.
+- Errors that both engines share are not corrected.
+- Proper names missing from the dictionary are kept as the engine reads them, and they cannot be corrected with certainty.
+- The dictionary comes from `/usr/share/dict/words` (macOS and Linux). Windows has no such file, so the project falls back to a simpler rule that only checks for vowels. That is weaker.
+- Pages with decorative lettering are hard for any engine.
 
-## Créditos
+## Credits
 
-Este proyecto no existiría sin el trabajo de otras personas y comunidades. Gracias a todas:
+This project depends on the work of many people and communities. Thank you to all of them:
 
-- [Tesseract OCR](https://github.com/tesseract-ocr/tesseract), al que le debemos años de trabajo abierto en reconocimiento de texto. Nació en HP y lo mantienen Google y la comunidad. Licencia Apache-2.0.
-- [pytesseract](https://github.com/madmaze/pytesseract), el puente que hace posible usar Tesseract desde Python. Licencia Apache-2.0.
-- [RapidOCR](https://github.com/RapidAI/RapidOCR), que pone los modelos PP-OCR a correr sobre ONNX sin depender de PaddlePaddle. Licencia Apache-2.0.
-- [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) y el equipo de PaddlePaddle en Baidu, autores de los modelos PP-OCR que usa RapidOCR. Licencia Apache-2.0.
-- [ONNX Runtime](https://github.com/microsoft/onnxruntime), de Microsoft. Licencia MIT.
-- [OpenCV](https://github.com/opencv/opencv), para el preprocesado de imágenes. Licencia Apache-2.0.
-- [Pillow](https://github.com/python-pillow/Pillow) y [NumPy](https://github.com/numpy/numpy), base de todo el manejo de imágenes y de arreglos. Licencias permisivas.
+- [Tesseract OCR](https://github.com/tesseract-ocr/tesseract), which has been open work on text recognition for years. It started at HP, and Google and the community maintain it. Apache-2.0 license.
+- [pytesseract](https://github.com/madmaze/pytesseract), the bridge that makes Tesseract usable from Python. Apache-2.0 license.
+- [RapidOCR](https://github.com/RapidAI/RapidOCR), which runs the PP-OCR models on ONNX without requiring PaddlePaddle. Apache-2.0 license.
+- [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) and the PaddlePaddle team at Baidu, authors of the PP-OCR models that RapidOCR uses. Apache-2.0 license.
+- [ONNX Runtime](https://github.com/microsoft/onnxruntime), by Microsoft. MIT license.
+- [OpenCV](https://github.com/opencv/opencv), for image preprocessing. Apache-2.0 license.
+- [Pillow](https://github.com/python-pillow/Pillow) and [NumPy](https://github.com/numpy/numpy), the base for all image and array handling. Permissive licenses.
 
-## Licencia
+## License
 
-MIT. Consulta el archivo `LICENSE`.
+MIT. See `LICENSE`.
